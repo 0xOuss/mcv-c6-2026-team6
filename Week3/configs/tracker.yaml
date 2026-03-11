@@ -1,0 +1,70 @@
+# ─────────────────────────────────────────────────────────────────
+# Tracker Config  (Task 1.2 + Task 2)
+# ─────────────────────────────────────────────────────────────────
+
+detector:
+  # Use best detector from Week 2 only (addresses feedback: "no need to use all")
+  model: "yolo26l-finetuned"
+  weights: "weights/yolo26l_finetuned.pt"   # 1-class fine-tuned on vehicles
+  # Fine-tuning details:
+  #   - Modified final head to output 1 class (vehicle) — NOT multi-class
+  #   - Fine-tuned on AI City training split for 10 epochs, lr=1e-4
+  #   - Alternative (no fine-tuning): filter COCO classes [2, 5, 7] = car, bus, truck
+  conf_threshold: 0.4
+  nms_threshold: 0.5
+  input_size: 1280
+  vehicle_classes: [2, 5, 7]   # COCO: car, bus, truck — used if not fine-tuned
+
+optical_flow:
+  method: "raft"               # raft | farneback | pyflow
+  model_path: "external/RAFT/models/raft-sintel.pth"
+  iters: 20
+  # Flow warping strategy
+  bbox_flow_aggregation: "median"  # median | mean | mode
+  # Design choice: median is robust to outliers at bbox edges where background bleeds in
+  flow_threshold: 1.5          # px — skip OF warp if median |flow| < threshold
+  # Design choice: stopped vehicles produce near-zero OF, warping adds noise not signal
+  use_fb_consistency: true     # Mask out pixels with inconsistent fwd/bwd flow
+  fb_threshold: 1.0            # px — forward-backward consistency threshold
+
+trackers:
+  # Run all three for comparison; pick best for T2
+  iou_baseline:
+    enabled: true
+    iou_threshold: 0.5
+    max_age: 1
+    min_hits: 1
+    matching: "hungarian"
+
+  kalman:
+    enabled: true
+    iou_threshold: 0.5
+    max_age: 5
+    min_hits: 2
+    matching: "hungarian"
+    # Kalman state: [x, y, w, h, vx, vy, vw, vh]
+    # Measurement: [x, y, w, h]
+
+  of_tracker:
+    enabled: true
+    iou_threshold: 0.45         # Tuned via grid search
+    max_age: 8                  # Tuned via grid search
+    min_hits: 3                 # Tuned via grid search
+    matching: "hungarian"       # hungarian | greedy
+    use_optical_flow: true
+    lookback_frames: 5          # For occlusion recovery
+
+hyperparameter_sweep:
+  # Grid search ranges
+  iou_threshold: [0.1, 0.2, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7, 0.8]
+  max_age: [1, 2, 3, 5, 8, 10, 15, 20, 25, 30]
+  min_hits: [1, 2, 3, 4, 5]
+  matching: ["hungarian", "greedy"]
+  # Sweep is run on c010 of S01 as validation; best HPs applied to all cameras
+
+evaluation:
+  metrics: ["idf1", "hota", "mota", "motp", "id_switches", "fragmentation"]
+  # Primary: IDF1 and HOTA (as per task requirements)
+  # Secondary: MOTA, id_switches for diagnostic insight
+
+output_dir: "results/tracking"

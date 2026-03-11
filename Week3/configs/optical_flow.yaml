@@ -1,0 +1,157 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Optical Flow Evaluation Config  (Task 1.1)
+#
+# Method ranking on KITTI 2015 F1-all (lower = better):
+#   UniMatch:       3.60%  — CVPR 2023, transformer global matching
+#   SEA-RAFT-L:     3.85%  — ECCV 2024, RAFT successor (faster + better)
+#   FlowFormer++:   4.52%  — CVPR 2023, cost-volume tokenization
+#   RAFT-kitti:     5.10%  — ECCV 2020, our T1.2 backend
+#   Farneback:    ~8-15%   — classical, OpenCV built-in
+#   PyFlow:       ~10-20%  — classical variational (required by task)
+#
+# T1.1 DELIVERABLE: Report PyFlow + our best newer method in the slides table.
+# Best method = UniMatch or SEA-RAFT (both significantly outperform RAFT on KITTI).
+# "Newer learning-based methods will be better graded" (instructions).
+# ─────────────────────────────────────────────────────────────────────────────
+
+data:
+  kitti_dir:  "data/kitti"
+  img1:       "data/kitti/000045_10.png"
+  img2:       "data/kitti/000045_11.png"
+  # KITTI 2012 GT: 16-bit PNG (not .flo). Channels: R=validity, G=v, B=u (scaled)
+  gt_flow:    "data/kitti/flow_occ/000045_10.png"
+  gt_noc:     "data/kitti/flow_noc/000045_10.png"
+
+output_dir: "results/optical_flow"
+
+methods:
+
+  # ── Required by task ─────────────────────────────────────────────────────
+  pyflow:
+    enabled: true
+    # Citation: Brox et al. "High accuracy optical flow estimation based on a
+    #   theory for warping." ECCV 2004. (Coarse2Fine algorithm underlying PyFlow)
+    # Implementation: https://github.com/pathak22/pyflow  (pip install pyflow)
+    # Our wrapper: src/optical_flow/pyflow_wrapper.py
+    alpha: 0.012        # regularization weight (larger = smoother, less detail)
+    ratio: 0.75         # pyramid scale factor between levels
+    minWidth: 20        # coarsest pyramid level width in pixels
+    nOuterFPIterations: 7
+    nInnerFPIterations: 1
+    nSORIterations: 30
+    # Ablation: alpha in [0.005, 0.012, 0.02] — shows regularization trade-off
+
+  # ── Classical baseline ────────────────────────────────────────────────────
+  farneback:
+    enabled: true
+    # Citation: Farneback. "Two-Frame Motion Estimation Based on Polynomial
+    #   Expansion." SCIA 2003.
+    # Implementation: cv2.calcOpticalFlowFarneback (OpenCV built-in)
+    # Our wrapper: src/optical_flow/farneback.py
+    pyr_scale: 0.5
+    levels: 3
+    winsize: 15         # ABLATION KEY: larger=smoother, blurs boundaries
+    iterations: 3
+    poly_n: 5
+    poly_sigma: 1.2
+    # Ablation: winsize in [5, 10, 15, 21, 31]
+
+  # ── RAFT — reference learned method (also used as T1.2 tracking backend) ─
+  raft:
+    enabled: true
+    # Citation: Teed & Deng. "RAFT: Recurrent All-Pairs Field Transforms for
+    #   Optical Flow." ECCV 2020. https://github.com/princeton-vl/RAFT
+    # Our wrapper: src/optical_flow/raft_wrapper.py
+    # Setup: git clone https://github.com/princeton-vl/RAFT external/RAFT
+    #        cd external/RAFT && pip install -e . && bash download_models.sh
+    model_path: "external/RAFT/models/raft-kitti.pth"
+    # Weight options (KITTI perf order):
+    #   raft-kitti.pth    ← fine-tuned on KITTI — use for eval AND as T1.2 backend
+    #   raft-sintel.pth   — Sintel fine-tune
+    #   raft-things.pth   — FlyingThings synthetic
+    #   raft-small.pth    — smaller/faster model
+    small: false
+    mixed_precision: false
+    iters: 20
+    # Ablation: iters in [5, 10, 15, 20, 24, 32] — diminishing returns curve
+
+  # ── UniMatch — CVPR 2023, BEST on KITTI (F1=3.60%) ──────────────────────
+  unimatch:
+    enabled: true
+    # Citation: Xu et al. "Unifying Flow, Stereo and Depth Estimation." CVPR
+    #   2023. https://github.com/autonomousvision/unimatch  ArXiv: 2211.05783
+    # Our wrapper: src/optical_flow/unimatch_wrapper.py
+    # Setup: git clone https://github.com/autonomousvision/unimatch external/unimatch
+    #        cd external/unimatch && pip install -r requirements.txt
+    # Download weights:
+    #   wget "https://s3.eu-central-1.amazonaws.com/avg-projects/unimatch/pretrained_models/gmflow-scale2-regrefine6-kitti15-25b554d7.pth" \
+    #     -O external/unimatch/pretrained_models/gmflow-scale2-regrefine6-kitti15-25b554d7.pth
+    model_path: "external/unimatch/pretrained_models/gmflow-scale2-regrefine6-kitti15-25b554d7.pth"
+    num_scales: 2
+    upsample_factor: 4
+    feature_channels: 128
+    num_transformer_layers: 6
+    num_head: 1
+    ffn_dim_expansion: 4
+    reg_refine: true
+    num_reg_refine: 6
+    attn_type: "swin"           # swin=faster, self=accurate (OOM on small GPUs)
+    attn_splits_list: [2, 8]
+    corr_radius_list: [-1, 4]
+    prop_radius_list: [-1, 1]
+
+  # ── SEA-RAFT — ECCV 2024, fast + accurate (F1=3.85% with L model) ────────
+  sea_raft:
+    enabled: false
+    # Citation: Wang et al. "SEA-RAFT: Simple, Efficient, Accurate RAFT for
+    #   Optical Flow." ECCV 2024. https://github.com/princeton-vl/SEA-RAFT
+    #   ArXiv: 2405.14793
+    # Our wrapper: src/optical_flow/sea_raft_wrapper.py
+    # Setup: git clone https://github.com/princeton-vl/SEA-RAFT external/sea_raft
+    #        cd external/sea_raft && pip install -r requirements.txt
+    # Download: https://github.com/princeton-vl/SEA-RAFT/releases
+    model_path: "external/sea_raft/models/sea_raft_m.pth"
+    # Weight options:
+    #   sea_raft_s.pth  — small (~2× faster than RAFT, F1=4.89%)
+    #   sea_raft_m.pth  — medium (same speed as RAFT, F1=4.52%)  ← use this
+    #   sea_raft_l.pth  — large (1.5× slower, F1=3.85%)
+    model_size: "M"     # "S", "M", or "L"
+    iters: 12           # fewer iterations needed than RAFT (direct init)
+
+  # ── FlowFormer++ — CVPR 2023, best on Sintel (EPE=1.07) ─────────────────
+  flowformer:
+    enabled: true
+    # Citation: Shi et al. "FlowFormer++: Masked Cost Volume Autoencoding for
+    #   Pretraining Optical Flow Estimation." CVPR 2023.
+    #   https://github.com/drinkingcoder/FlowFormer-Official  ArXiv: 2303.01237
+    # Our wrapper: src/optical_flow/flowformer_wrapper.py
+    # Setup: git clone https://github.com/drinkingcoder/FlowFormer-Official external/flowformer
+    #        cd external/flowformer && pip install -r requirements.txt
+    # Download from: https://github.com/drinkingcoder/FlowFormer-Official/releases
+    model_path: "external/flowformer/checkpoints/flowformerpp-kitti.pth"
+    # Weight options:
+    #   flowformerpp-sintel.pth  — best on Sintel EPE (1.07)
+    #   flowformerpp-kitti.pth   ← use for KITTI eval
+    padding_factor: 32
+
+  # ── Disabled (too complex to set up before deadline) ─────────────────────
+  flownet2:
+    enabled: true
+    model_path: "external/flownet2-pytorch/models/FlowNet2_checkpoint.pth.tar"
+
+  maskflownet:
+    enabled: true
+    model_path: "external/MaskFlownet/MaskFlownet_S.params"
+
+evaluation:
+  metrics: ["msen", "pepn", "epe_noc", "epe_all", "runtime"]
+  pepn_threshold: 3.0       # EPE > 3px = erroneous pixel (KITTI standard)
+  use_noc_mask: true        # use non-occluded mask for MSEN/PEPN
+  n_timing_runs: 3          # median over N runs for stable runtime estimate
+
+visualization:
+  save_quiver: true
+  save_hsv: true
+  save_error_map: true
+  save_fb_consistency: true  # RAFT, UniMatch, SEA-RAFT support backward pass
+  quiver_step: 12
