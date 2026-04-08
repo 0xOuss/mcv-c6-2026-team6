@@ -18,9 +18,9 @@
   - [Step 2 – Train & Evaluate](#step-2--train--evaluate)
   - [Step 3 – Report AP Scores](#step-3--report-ap-scores)
   - [Step 4 – Compute MACs / Parameter Count](#step-4--compute-macs--parameter-count)
+  - [Download Pre-trained Weights](#download-pre-trained-weights)
 - [Available Models & Experiments](#available-models--experiments)
 - [Results](#results)
-- [Support](#support)
 
 ---
 
@@ -276,6 +276,14 @@ python3 scripts/compute_macs.py --model ablation_rny004
 cp "${C6_ROOT}/runs/<model_name>/checkpoints/checkpoint_best.pt" "${C6_ROOT}/weights/"
 ```
 
+### Download Pre-trained Weights
+
+The best model checkpoint (`exp_focal_gru_best`) is available for download — no training required:
+
+**[⬇ Download checkpoint_best.pt (Google Drive)](https://drive.google.com/file/d/1yO_NGCKjNyi3SP48naU-b5z49TKoheJB/view?usp=sharing)**
+
+Place the downloaded file in `${C6_ROOT}/weights/` and set `only_test: true` in the config to run inference directly.
+
 ---
 
 ## Available Models & Experiments
@@ -322,11 +330,3 @@ Example output format:
 +----------------------------+-------+
 ```
 
----
-
-## Support
-
-For questions related to the code, please contact:
-
-- **Albert Clapés** – [aclapes@ub.edu](mailto:aclapes@ub.edu)
-- **Artur Xarles** – [arturxe@gmail.com](mailto:arturxe@gmail.com)
