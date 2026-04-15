@@ -298,7 +298,3 @@ All runs are tracked on W&B under project `mcv-c6-bas-bigru`.
 
 > AP10 is the primary evaluation metric as FREE KICK and GOAL have very few training samples, making their AP estimates unreliable.
 
-### Ablation Summary
-
-| Model | Description | AP10 |
-| **BiGRU-512-L2** | **BiGRU (hd=512, 2 layers)** | **31.87%** |
